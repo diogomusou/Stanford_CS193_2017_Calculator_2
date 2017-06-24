@@ -5,6 +5,7 @@
 //  Created by Diogo M Souza on 2017/05/31.
 //  Copyright © 2017 Diogo M Souza. All rights reserved.
 //
+// Calculator 2
 
 import Foundation
 
