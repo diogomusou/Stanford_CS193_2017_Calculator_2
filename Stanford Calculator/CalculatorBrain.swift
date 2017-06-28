@@ -10,22 +10,88 @@
 import Foundation
 
 struct CalculatorBrain {
-    private var accumulator : (value : Double?, text : String?)
     
-    var description : String? {
-        get {
-            if !resultIsPending {
-                return accumulator.text
-            } else {
-                return pendingBinaryOperation!.descriptionFunction(pendingBinaryOperation!.firstDescriptionOperand, accumulator.text ?? "")
-            }
-        }
+    private var inputAccumulator : Array<Input> = []
+    private var currentOperation : Int = 0
+    
+    private enum Input {
+        case number(Double)
+        case variable(String)
+        case operation(String)
     }
     
-    var resultIsPending : Bool {
-        get {
-            return pendingBinaryOperation != nil
+    
+    
+    //cannot be mutating
+    func evaluate(using variables: Dictionary<String,Double>? = nil) -> (result: Double?, isPending: Bool, description: String) {
+        var accumulator : (value : Double?, text : String?)
+        var pendingBinaryOperation : PendingBinaryOperation?
+        
+        func performOperation(_ symbol : String) {
+            if let operation = operations[symbol] {
+                switch operation {
+                case .rand(let function):
+                    let randNumber = function()
+                    accumulator = (randNumber, "rand(" + formatter.string(from: randNumber as NSNumber)! + ")")
+                case .constant(let value):
+                    accumulator = (value, symbol)
+                case .unaryOperation(let (function, description)):
+                    if accumulator.value != nil {
+                        accumulator = (function(accumulator.value!), description(accumulator.text!))
+                    }
+                case .binaryOperation(let (function, descriptionFunction)):
+                    //if user wants to do multiple operations without pressing "=",
+                    //calculate previous result first (first 3 lines are same code as "case .equals"):
+                    performPendingBinaryOperation()
+                    
+                    if accumulator.value != nil {
+                        pendingBinaryOperation = PendingBinaryOperation(function: function, firstOperand: accumulator.value!, descriptionFunction: descriptionFunction, firstDescriptionOperand: accumulator.text!)
+                        accumulator = (nil, nil)
+                    }
+                case .equals:
+                    performPendingBinaryOperation()
+                }
+            }
         }
+        
+        func performPendingBinaryOperation() {
+            if accumulator.value != nil && pendingBinaryOperation != nil {
+                accumulator.value = pendingBinaryOperation!.perform(with: accumulator.value!)
+                accumulator.text = pendingBinaryOperation!.performDescription(with: accumulator.text!)
+                pendingBinaryOperation = nil
+            }
+        }
+        
+        if variables != nil {
+            for (variable, value) in variables! {
+                variablesDictionary.updateValue(value, forKey: variable)
+            }
+        }
+        for input in inputAccumulator {
+            switch input {
+            case .number(let operand):
+                accumulator = (operand, formatter.string(from: operand as NSNumber))
+            case .variable(let variable):
+                accumulator = (variablesDictionary[variable] ?? 0, variable)
+            case .operation(let symbol):
+                performOperation(symbol)
+            }
+        }
+        
+        let result : Double? = accumulator.value
+        let isPending : Bool = (pendingBinaryOperation != nil)
+        var description : String = ""
+        if !isPending {
+            if accumulator.text != nil {
+                description = accumulator.text!
+            } else {
+                description = ""
+            }
+        } else {
+            description = pendingBinaryOperation!.descriptionFunction(pendingBinaryOperation!.firstDescriptionOperand, accumulator.text ?? "")
+        }
+        
+         return (result, isPending, description)
     }
     
     private enum Operation {
@@ -57,41 +123,20 @@ struct CalculatorBrain {
     
     
     mutating func performOperation(_ symbol : String) {
-        if let operation = operations[symbol] {
-            switch operation {
-            case .rand(let function):
-                let randNumber = function()
-                accumulator = (randNumber, "rand(" + formatter.string(from: randNumber as NSNumber)! + ")")
-            case .constant(let value):
-                accumulator = (value, symbol)
-            case .unaryOperation(let (function, description)):
-                if accumulator.value != nil {
-                    accumulator = (function(accumulator.value!), description(accumulator.text!))
-                }
-            case .binaryOperation(let (function, descriptionFunction)):
-                //if user wants to do multiple operations without pressing "=",
-                //calculate previous result first (first 3 lines are same code as "case .equals"):
-                performPendingBinaryOperation()
-                
-                if accumulator.value != nil {
-                    pendingBinaryOperation = PendingBinaryOperation(function: function, firstOperand: accumulator.value!, descriptionFunction: descriptionFunction, firstDescriptionOperand: accumulator.text!)
-                    accumulator = (nil, nil)
-                }
-            case .equals:
-                performPendingBinaryOperation()
-            }
-        }
+        inputAccumulator.append(.operation(symbol))
     }
     
-    private mutating func performPendingBinaryOperation() {
-        if accumulator.value != nil && pendingBinaryOperation != nil {
-            accumulator.value = pendingBinaryOperation!.perform(with: accumulator.value!)
-            accumulator.text = pendingBinaryOperation!.performDescription(with: accumulator.text!)
-            pendingBinaryOperation = nil
-        }
+    mutating func setOperand(_ operand: Double) {
+        inputAccumulator.append(.number(operand))
     }
     
-    private var pendingBinaryOperation : PendingBinaryOperation?
+    mutating func setOperand(variable: String) {
+        inputAccumulator.append(.variable(variable))
+    }
+    
+    mutating func undo() {
+        if inputAccumulator.count > 0 { inputAccumulator.removeLast() }
+    }
     
     private struct PendingBinaryOperation {
         let function : (Double,Double) -> Double
@@ -108,14 +153,19 @@ struct CalculatorBrain {
         }
     }
     
-    var result : Double? {
-        get {
-            return accumulator.value
-        }
+    //deprecated
+    var description : String? {
+        return evaluate().description
     }
     
-    mutating func setOperand(_ operand: Double) {
-        accumulator = (operand, formatter.string(from: operand as NSNumber))
+    //deprecated
+    var resultIsPending : Bool {
+        return evaluate().isPending
+    }
+    
+    //deprecated
+    var result : Double? {
+        return evaluate().result
     }
     
     
@@ -140,3 +190,5 @@ let formatter : NumberFormatter = {
     formatter.locale = Locale.current
     return formatter
 }()
+
+var variablesDictionary = [String: Double]()

@@ -12,6 +12,7 @@ class ViewController: UIViewController {
 
     @IBOutlet weak var displayLabel: UILabel!
     @IBOutlet weak var descriptionLabel: UILabel!
+    @IBOutlet weak var variableLabel: UILabel!
     @IBOutlet weak var acButton: UIButton! //All Clear button. Changes to "C" (clear) when userIsInTheMiddleOfTyping
     @IBOutlet weak var decimalSeparatorButton: UIButton! {
         didSet {
@@ -61,7 +62,35 @@ class ViewController: UIViewController {
         acButton.setTitle("C", for: .normal)
     }
     
-
+    @IBAction func insertVariable(_ sender: UIButton) {
+        brain.setOperand(variable: "M")
+        updateUI()
+    }
+    
+    @IBAction func setVariable(_ sender: UIButton) {
+        if brain.evaluate(using: ["M":displayValue]).result != nil {
+            userIsInTheMiddleOfTyping = false
+            updateUI()
+        }
+    }
+    
+    @IBAction func undo(_ sender: UIButton) {
+        if userIsInTheMiddleOfTyping {
+            var newValue = displayLabel.text!
+            newValue.remove(at: newValue.index(before: newValue.endIndex))
+            if newValue == "" {
+                newValue = "0"
+                userIsInTheMiddleOfTyping = false
+            }
+            displayLabel.text = newValue
+        } else {
+            brain.undo()
+            updateUI()
+        }
+    }
+    
+    
+    
     @IBAction func performOperation(_ sender: UIButton) {
         if userIsInTheMiddleOfTyping {
             brain.setOperand(displayValue)
@@ -72,16 +101,7 @@ class ViewController: UIViewController {
         if let mathematicalSymbol = sender.currentTitle {
             brain.performOperation(mathematicalSymbol)
         }
-        if let result = brain.result {
-            displayValue = result
-        }
-        if let description = brain.description {
-            if brain.resultIsPending {
-                descriptionLabel.text = description + " ..."
-            } else {
-                descriptionLabel.text = description + " ="
-            }
-        }
+        updateUI()
     }
 
     //Reset brain (by reinitializing the CalculatorBrain
@@ -89,12 +109,32 @@ class ViewController: UIViewController {
     @IBAction func touchedAC(_ sender: UIButton) {
         if !userIsInTheMiddleOfTyping {
             brain = CalculatorBrain()
+            variablesDictionary = [:]
             descriptionLabel.text = " "
+            variableLabel.text = " "
         }
         displayLabel.text = "0"
         userIsInTheMiddleOfTyping = false
         userIsTypingDoubleValue = false
         acButton.setTitle("AC", for: .normal)
+    }
+    
+    private func updateUI() {
+        if let result = brain.evaluate().result {
+            displayValue = result
+        }
+        let description = brain.evaluate().description
+        if brain.evaluate().isPending {
+            descriptionLabel.text = description + " ..."
+        } else {
+            descriptionLabel.text = description == "" ? " " : (description + " =")
+        }
+        
+        if let variableValue = variablesDictionary["M"] {
+            variableLabel.text = "M = \(variableValue)"
+        } else {
+            variableLabel.text = " "
+        }
     }
 
 }
