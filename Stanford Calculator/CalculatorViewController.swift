@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  CalculatorViewController.swift
 //  Stanford Calculator
 //
 //  Created by Diogo M Souza on 2017/05/31.
@@ -8,7 +8,7 @@
 
 import UIKit
 
-class ViewController: UIViewController {
+class CalculatorViewController: UIViewController {
 
     @IBOutlet weak var displayLabel: UILabel!
     @IBOutlet weak var descriptionLabel: UILabel!
@@ -134,6 +134,16 @@ class ViewController: UIViewController {
             variableLabel.text = "M = \(variableValue)"
         } else {
             variableLabel.text = " "
+        }
+    }
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        var destinationVC = segue.destination
+        if let navigationController = destinationVC as? UINavigationController {
+            destinationVC = navigationController.visibleViewController  ?? destinationVC
+        }
+        if let graphingVC = destinationVC as? GraphingViewController {
+            graphingVC.mathematicFunction.function = sin
         }
     }
 
